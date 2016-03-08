@@ -1,0 +1,157 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('untitled:server');
+var http = require('http');
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+var io = require('socket.io')(server);
+
+
+//在线用户
+var onlineUsers = [];
+
+io.on('connection', function(socket){
+  console.log('a user connected');
+
+  //监听新用户加入
+  socket.on('login', function(obj){
+    socket.name = obj.username;
+    //检查在线列表，如果不在里面就加入
+    if(!existsUser(obj.username)) {
+      onlineUsers.push(obj.username);
+    }
+
+    //向所有客户端广播用户加入
+    io.emit('login', {onlineUsers:onlineUsers, user:obj});
+    console.log(obj.username+'加入了聊天室');
+  });
+
+  //监听用户退出
+  socket.on('disconnect', function(){
+    //将退出的用户从在线列表中删除
+    if(existsUser(socket.name)) {
+      //退出用户的信息
+      var obj = { username:socket.name};
+
+      //删除
+      deleteOnlineUser(onlineUsers,socket.name);
+
+      //向所有客户端广播用户退出
+      io.emit('logout', {onlineUsers:onlineUsers, user:obj});
+      console.log(obj.username+'退出了聊天室');
+    }
+  });
+
+  //监听用户发布聊天内容
+  socket.on('message', function(obj){
+    //向所有客户端广播发布的消息
+    io.emit('message', obj);
+    console.log(obj.username+'说：'+obj.content);
+  });
+
+});
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
+
+function existsUser(username){
+  for(var i= 0,len=onlineUsers.length;i<len;i++){
+    if(onlineUsers[i] == username)
+      return true;
+  }
+  return false;
+}
+
+function deleteOnlineUser(array,username){
+  function indexOf (val) {
+    for (var i = 0; i < array.length; i++) {
+      if (array[i] == val) return i;
+    }
+    return -1;
+  }
+  var index = indexOf(username);
+  if (index > -1) {
+    array.splice(index, 1);
+  }
+  return array;
+}
