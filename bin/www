@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-
+#! /home/joyt/node-v8.11.1-linux-x64/bin/node
 /**
  * Module dependencies.
  */
